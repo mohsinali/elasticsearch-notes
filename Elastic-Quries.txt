@@ -1,0 +1,393 @@
+PUT /pages
+DELETE /pages
+
+# Creating an index with settings.
+PUT /products
+{
+  "settings": {
+    "number_of_shards": 2,
+    "number_of_replicas": 2
+  }
+}
+
+POST /products/_doc
+{
+  "name": "Watch",
+  "price": 100,
+  "in_stock": 10
+}
+
+GET /products/_search
+
+GET /products/_doc/8xtdj3IBRtB9_VmYF1Bj
+GET /products/_doc/UnTVlnIBTxC1kEVQkGau
+
+POST /products/_update/8xtdj3IBRtB9_VmYF1Bj?if_primary_term=4&if_seq_no=36
+{
+  "doc": {
+    "in_stock": 10
+  }
+}
+
+
+##################################################################
+##            SCRIPTING             ##
+
+## Update using scripts
+#  Decrease by one
+POST /products/_update/8xtdj3IBRtB9_VmYF1Bj
+{
+  "script": {
+    "source": "ctx._source.in_stock--"
+  }
+}
+
+## Assign a value
+POST /products/_update/8xtdj3IBRtB9_VmYF1Bj
+{
+  "script": {
+    "source": "ctx._source.in_stock = 0"
+  }
+}
+
+## Using parameters
+POST /products/_update/8xtdj3IBRtB9_VmYF1Bj
+{
+  "script": {
+    "source": "ctx._source.in_stock -= params.quantity",
+    "params": {
+      "quantity": 4
+    }
+  }
+}
+
+## Notes
+##  Updates using scripts always return "result": "updated".
+##  Otherwise we can specify 'noop' explicitly.
+
+## Option-1
+POST /products/_update/8xtdj3IBRtB9_VmYF1Bj
+{
+  "script": {
+    "source": """
+      if(ctx._source.in_stock == 0){
+        ctx.op = 'noop';
+      }
+      
+      ctx._source.in_stock--;
+    """
+  }
+}
+
+## Option-2  Delete if out of stock
+POST /products/_update/UnTVlnIBTxC1kEVQkGau
+{
+  "script": {
+    "source": """
+      if(ctx._source.in_stock < 1){
+        ctx.op = 'delete';
+      }
+      
+      ctx._source.in_stock--;
+    """
+  }
+}
+
+## UPSERTS - Updates a doc if exists, creates otherwise
+POST /products/_update/101
+{
+  "script": {
+    "source": "ctx._source.in_stock++"
+  }, 
+  "upsert": {
+    "name": "Tables",
+    "price": 50,
+    "in_stock": 7,
+    "tags": ["Multimedia", "Furniture"]
+  }
+}
+
+GET /products/_doc/101
+DELETE /products/_doc/101
+
+## Replacing document
+PUT /products/_doc/101
+{
+  "name": "Tables",
+  "price": 50,
+  "in_stock": 7
+}
+
+## Bulk update
+POST /products/_update_by_query
+{
+  "script": {
+    "source": "ctx._source.in_stock--"
+  },
+  "query": {
+    "match_all": {}
+  }
+}
+
+## Bulk Delete
+POST /products/_delete_by_query
+{
+  "query": {
+    "matchc_all": {}
+  }
+}
+
+##################################################################
+##      END-SCRIPTING          ##
+
+## Adding new fields
+POST /products/_update/8xtdj3IBRtB9_VmYF1Bj
+{
+  "doc": {
+    "tags": ["electronics", "kitchen"]
+  }
+}
+
+############################# BULK ACTIONS #############################
+POST /_bulk
+{"index": {"_index": "products", "_id": 200}}
+{ "name": "Espresso Machine", "price": 199, "in_stock": 5 }
+{"index": {"_index": "products", "_id": 201}}
+{ "name": "Sandwidh Maker", "price": 60, "in_stock": 7 }
+{"create": {"_index": "products"}}
+{"name": "Washing Machine", "price": "500", "in_stock": 12}
+
+
+## Notes:
+##    Action "index" creates a new document or replace if already exists.
+##    Action "create" creates a new document or error if already exists.
+##  Content-Type: application/x-ndjson
+
+POST /products/_bulk
+{ "update": {"_id": 201 } }
+{ "doc": {"name": "Philips Sandwich Maker"} }
+{ "delete": {"_id": 200} }
+
+
+GET /products/_search
+{
+  "query": {
+    "match_all": {}
+  }
+}
+############################# END - BULK ACTIONS #############################
+
+
+################################ MAPPINGS ################################
+GET /products/_mapping
+PUT /products/_mapping
+{
+  "properties": {
+    "discount": {
+      "type": "double"
+    }
+  }
+}
+
+############################# END - MAPPINGS #############################
+
+
+################################ SEARCH QUERIES ################################
+GET /products/_search
+{
+  "query": {
+    "match_all": {}
+  }
+}
+
+GET /products/_search
+{
+  "query": {
+    "term": {
+      "is_active": true
+    }
+  }
+}
+
+GET /products/_search
+{
+  "query": {
+    "terms": {
+      "tags.keyword": [
+        "Soup",
+        "Cake"
+      ]
+    }
+  }
+}
+
+
+GET /products/_search
+{
+  "query": {
+    "ids": {
+      "values": [1,2,3]
+    }
+  }
+}
+
+GET /products/_search
+{
+  "query": {
+    "range": {
+      "in_stock": {
+        "gte": 1,
+        "lte": 5
+      }
+    }
+  }
+}
+
+
+## Date range
+GET /products/_search
+{
+  "query": {
+    "range": {
+      "created": {
+        "gte": "2010/01/01",
+        "lte": "2010/12/31",
+        "format": "yyyy/MM/dd"
+      }
+    }
+  }
+}
+## "gte": "2010/01/01||[+1d, -1y]"
+## "gte": "2010/01/01||-1y/M"  Subtract 1 year and Round to month
+## "gte": "2010/01/01||/M-1y"  Round to month and subtract one year
+## "gte": "now"  Round to month and subtract one year
+
+## Getting results with non-null fields
+GET /products/_search
+{
+  "query": {
+    "exists": {
+      "field": "tags"
+    }
+  }
+}
+
+########################## END - SEARCH QUERIES ################################
+
+########################## TERM LEVEL QUERIES ################################
+GET /products/_search
+{
+  "query": {
+    "prefix": {
+      "tags.keyword": "Vege"
+    }
+  }
+}
+
+GET /products/_search
+{
+  "query": {
+    "wildcard": {
+      "tags.keyword": "Vege?able"
+    }
+  }
+}
+## * & ? => * matches multiple characters while ? matches only one character. [SLOW]
+
+########################## END - TERM LEVEL QUERIES ################################
+
+
+
+
+# ## System level queries
+GET _cluster/health
+
+GET _cat/indices?v
+
+GET _cat/shards?v
+
+GET _cat/nodes?v
+
+POST /_analyze
+{
+  "tokenizer": "standard",
+  "text": "I'm in the mood of drinking semi-dry red wine!. My email is 'mohsin@yahoo.com'"
+}
+
+POST /_analyze
+{
+  "filter": ["lowercase"],
+  "text": "I'm in the mood of drinking semi-dry red wine!"
+}
+
+POST /_analyze
+{
+  "analyzer": "standard", 
+  "text": "I'm in the mood of drinking semi-dry red wine!"
+}
+
+
+## Every cluster has an Inverted Index. When we perform search, ES actually searched in inverted index.
+## Don't use nGram or edge_gram tokenizer for autocomplete or suggestions like search. Instread use suggestors.
+
+## Query Context affects the relevance score / Filter Context: Does not affect the relevance score
+
+
+
+## ASSIGNMENT - 1
+##  Products where the “sold” field has a value of less than 10 (sold < 10).
+GET /products/_search
+{
+  "query": {
+    "range": {
+      "sold": {
+        "lt": 10
+      }
+    }
+  }
+}
+
+## sold < 30 && sold >= 10
+GET /products/_search
+{
+  "query": {
+    "range": {
+      "sold": {
+        "lt": 30,
+        "gte": 10
+      }
+    }
+  }
+}
+
+## matches documents containing the term “Meat” within the “tags” field.
+GET /products/_search
+{
+  "query": {
+    "term": {
+      "tags.keyword": "Meat"
+    }
+  }
+}
+
+## matching documents containing one of the terms "Tomato" and "Paste" within the "name" field.
+GET /products/_search
+{
+  "query": {
+    "terms": {
+      "name":  [ "Tomato", "Paste" ]
+    }
+  }
+}
+
+## Query that matches products with a "name" field including “pasta”, “paste”, or similar.
+GET /products/_search
+{
+  "query": {
+    "wildcard": {
+      "name": "past?"
+    }
+  }
+}
+
+
